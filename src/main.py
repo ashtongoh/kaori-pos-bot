@@ -1,0 +1,221 @@
+"""
+Main entry point for the Kaori POS Bot
+"""
+import os
+import logging
+from dotenv import load_dotenv
+from flask import Flask, request
+from telegram import Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ConversationHandler,
+    filters
+)
+
+# Import handlers
+from src.bot.handlers.control_panel import (
+    start_command,
+    control_panel_callback,
+    view_past_sales_callback,
+    view_past_inventory_callback
+)
+from src.bot.handlers.setup import (
+    manage_menu_command,
+    start_add_menu_item,
+    receive_menu_name,
+    receive_menu_size,
+    receive_menu_price,
+    cancel_menu_setup,
+    delete_menu_item_callback,
+    MENU_NAME,
+    MENU_SIZE,
+    MENU_PRICE
+)
+from src.bot.handlers.inventory import (
+    start_session_callback,
+    receive_inventory_item_name,
+    receive_inventory_quantity,
+    receive_inventory_price,
+    ask_more_inventory,
+    skip_inventory,
+    cancel_inventory,
+    INV_ITEM_NAME,
+    INV_QUANTITY,
+    INV_PRICE,
+    INV_MORE
+)
+from src.bot.handlers.sales import (
+    show_sales_dashboard,
+    new_order_callback,
+    add_item_to_cart_callback,
+    clear_cart_callback,
+    confirm_cart_callback,
+    payment_method_callback,
+    cancel_order_callback,
+    cancel_payment_callback,
+    end_session_callback,
+    confirm_end_session_callback,
+    back_to_dashboard_callback
+)
+from src.bot.handlers.orders import (
+    view_orders_callback,
+    view_order_detail_callback,
+    delete_order_callback,
+    confirm_delete_order_callback
+)
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Get configuration from environment
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+PORT = int(os.getenv("PORT", 8443))
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+# Initialize Flask app for webhook (only used in production)
+app = Flask(__name__)
+
+# Initialize bot application
+application = None
+
+
+def setup_handlers(app: Application):
+    """Setup all bot handlers"""
+
+    # Command handlers
+    app.add_handler(CommandHandler("start", start_command))
+
+    # Menu setup conversation handler
+    menu_conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_add_menu_item, pattern="^add_menu_item$")],
+        states={
+            MENU_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_menu_name)],
+            MENU_SIZE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_menu_size)],
+            MENU_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_menu_price)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel_menu_setup)]
+    )
+    app.add_handler(menu_conv_handler)
+
+    # Inventory/session start conversation handler
+    inventory_conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_session_callback, pattern="^start_session$")],
+        states={
+            INV_ITEM_NAME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_inventory_item_name),
+                CommandHandler("skip", skip_inventory)
+            ],
+            INV_QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_inventory_quantity)],
+            INV_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_inventory_price)],
+            INV_MORE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_more_inventory)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel_inventory)]
+    )
+    app.add_handler(inventory_conv_handler)
+
+    # Control panel callbacks
+    app.add_handler(CallbackQueryHandler(control_panel_callback, pattern="^control_panel$"))
+    app.add_handler(CallbackQueryHandler(view_past_sales_callback, pattern="^view_sales"))
+    app.add_handler(CallbackQueryHandler(view_past_inventory_callback, pattern="^view_inventory$"))
+
+    # Menu management callbacks
+    app.add_handler(CallbackQueryHandler(manage_menu_command, pattern="^manage_menu$"))
+    app.add_handler(CallbackQueryHandler(delete_menu_item_callback, pattern="^delete_menu_item:"))
+
+    # Sales dashboard callbacks
+    app.add_handler(CallbackQueryHandler(new_order_callback, pattern="^new_order$"))
+    app.add_handler(CallbackQueryHandler(add_item_to_cart_callback, pattern="^add_item:"))
+    app.add_handler(CallbackQueryHandler(clear_cart_callback, pattern="^clear_cart$"))
+    app.add_handler(CallbackQueryHandler(confirm_cart_callback, pattern="^confirm_cart$"))
+    app.add_handler(CallbackQueryHandler(payment_method_callback, pattern="^payment:"))
+    app.add_handler(CallbackQueryHandler(cancel_order_callback, pattern="^cancel_order$"))
+    app.add_handler(CallbackQueryHandler(cancel_payment_callback, pattern="^cancel_payment$"))
+    app.add_handler(CallbackQueryHandler(end_session_callback, pattern="^end_session$"))
+    app.add_handler(CallbackQueryHandler(confirm_end_session_callback, pattern="^confirm_end_session$"))
+    app.add_handler(CallbackQueryHandler(back_to_dashboard_callback, pattern="^back_to_dashboard$"))
+
+    # Order management callbacks
+    app.add_handler(CallbackQueryHandler(view_orders_callback, pattern="^view_orders$"))
+    app.add_handler(CallbackQueryHandler(view_orders_callback, pattern="^orders_page:"))
+    app.add_handler(CallbackQueryHandler(view_order_detail_callback, pattern="^view_order:"))
+    app.add_handler(CallbackQueryHandler(delete_order_callback, pattern="^delete_order:"))
+    app.add_handler(CallbackQueryHandler(confirm_delete_order_callback, pattern="^confirm_delete:"))
+
+    logger.info("All handlers registered successfully")
+
+
+async def webhook_update(update_data):
+    """Process webhook update"""
+    update = Update.de_json(update_data, application.bot)
+    await application.process_update(update)
+
+
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+async def webhook():
+    """Handle incoming webhook requests"""
+    if request.method == "POST":
+        update_data = request.get_json(force=True)
+        await webhook_update(update_data)
+        return "OK"
+
+
+@app.route("/")
+def index():
+    """Health check endpoint"""
+    return "Kaori POS Bot is running!"
+
+
+async def setup_webhook():
+    """Setup webhook for the bot"""
+    webhook_url = f"{WEBHOOK_URL}/{BOT_TOKEN}"
+    await application.bot.set_webhook(webhook_url)
+    logger.info(f"Webhook set to: {webhook_url}")
+
+
+def main():
+    """Main function to run the bot"""
+    global application
+
+    # Create application
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # Setup handlers
+    setup_handlers(application)
+
+    # Run based on environment
+    if ENVIRONMENT == "production" and WEBHOOK_URL:
+        # Production mode: Use webhook
+        logger.info("Running in PRODUCTION mode with webhook")
+
+        # Initialize the application
+        application.initialize()
+
+        # Setup webhook
+        import asyncio
+        asyncio.run(setup_webhook())
+
+        # Run Flask app
+        logger.info(f"Starting webhook server on port {PORT}")
+        app.run(host="0.0.0.0", port=PORT)
+    else:
+        # Development mode: Use polling
+        logger.info("Running in DEVELOPMENT mode with polling")
+        logger.info("Bot is now running. Press Ctrl+C to stop.")
+
+        # Run with polling
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
+    main()

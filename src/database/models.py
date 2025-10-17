@@ -1,0 +1,223 @@
+"""
+Database models and query functions for Supabase
+"""
+from typing import List, Dict, Optional, Any
+from datetime import datetime
+from .supabase_client import get_supabase_client
+
+
+class Database:
+    """Database operations wrapper"""
+
+    def __init__(self):
+        self.client = get_supabase_client()
+
+    # ===== AUTHENTICATION =====
+
+    def is_user_authorized(self, telegram_id: int) -> bool:
+        """Check if a user is authorized to use the bot"""
+        try:
+            response = self.client.table("authorized_users").select("id").eq("telegram_id", telegram_id).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Error checking authorization: {e}")
+            return False
+
+    def update_user_info(self, telegram_id: int, username: str = None, full_name: str = None):
+        """Update user information"""
+        try:
+            data = {}
+            if username:
+                data["username"] = username
+            if full_name:
+                data["full_name"] = full_name
+
+            if data:
+                self.client.table("authorized_users").update(data).eq("telegram_id", telegram_id).execute()
+        except Exception as e:
+            print(f"Error updating user info: {e}")
+
+    # ===== MENU ITEMS =====
+
+    def get_menu_items(self, active_only: bool = True) -> List[Dict]:
+        """Get all menu items"""
+        try:
+            query = self.client.table("menu_items").select("*")
+            if active_only:
+                query = query.eq("active", True)
+            response = query.order("display_order").execute()
+            return response.data
+        except Exception as e:
+            print(f"Error fetching menu items: {e}")
+            return []
+
+    def add_menu_item(self, name: str, size: str, price: float) -> Optional[Dict]:
+        """Add a new menu item"""
+        try:
+            # Get the next display order
+            max_order_response = self.client.table("menu_items").select("display_order").order("display_order", desc=True).limit(1).execute()
+            next_order = (max_order_response.data[0]["display_order"] + 1) if max_order_response.data else 0
+
+            response = self.client.table("menu_items").insert({
+                "name": name,
+                "size": size,
+                "price": price,
+                "display_order": next_order
+            }).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"Error adding menu item: {e}")
+            return None
+
+    def delete_menu_item(self, item_id: str) -> bool:
+        """Soft delete a menu item"""
+        try:
+            self.client.table("menu_items").update({"active": False}).eq("id", item_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error deleting menu item: {e}")
+            return False
+
+    # ===== SALE SESSIONS =====
+
+    def create_session(self, telegram_id: int) -> Optional[Dict]:
+        """Create a new sale session"""
+        try:
+            response = self.client.table("sale_sessions").insert({
+                "started_by": telegram_id,
+                "status": "active"
+            }).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"Error creating session: {e}")
+            return None
+
+    def get_active_session(self) -> Optional[Dict]:
+        """Get the currently active session"""
+        try:
+            response = self.client.table("sale_sessions").select("*").eq("status", "active").execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"Error fetching active session: {e}")
+            return None
+
+    def end_session(self, session_id: str) -> bool:
+        """End a sale session"""
+        try:
+            self.client.table("sale_sessions").update({
+                "status": "ended",
+                "ended_at": datetime.utcnow().isoformat()
+            }).eq("id", session_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error ending session: {e}")
+            return False
+
+    def get_session_by_id(self, session_id: str) -> Optional[Dict]:
+        """Get a session by ID"""
+        try:
+            response = self.client.table("sale_sessions").select("*").eq("id", session_id).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"Error fetching session: {e}")
+            return None
+
+    def get_past_sessions(self, limit: int = 10, offset: int = 0) -> List[Dict]:
+        """Get past sessions with pagination"""
+        try:
+            response = self.client.table("sale_sessions").select("*").order("started_at", desc=True).range(offset, offset + limit - 1).execute()
+            return response.data
+        except Exception as e:
+            print(f"Error fetching past sessions: {e}")
+            return []
+
+    # ===== INVENTORY LOGS =====
+
+    def add_inventory_log(self, session_id: str, item_name: str, quantity: int, cost_price: Optional[float] = None) -> Optional[Dict]:
+        """Add an inventory log entry"""
+        try:
+            data = {
+                "session_id": session_id,
+                "item_name": item_name,
+                "quantity": quantity
+            }
+            if cost_price is not None:
+                data["cost_price"] = cost_price
+
+            response = self.client.table("inventory_logs").insert(data).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"Error adding inventory log: {e}")
+            return None
+
+    def get_inventory_by_session(self, session_id: str) -> List[Dict]:
+        """Get all inventory logs for a session"""
+        try:
+            response = self.client.table("inventory_logs").select("*").eq("session_id", session_id).execute()
+            return response.data
+        except Exception as e:
+            print(f"Error fetching inventory logs: {e}")
+            return []
+
+    # ===== ORDERS =====
+
+    def create_order(self, session_id: str, items: List[Dict], payment_method: str, telegram_id: int) -> Optional[Dict]:
+        """Create a new order"""
+        try:
+            # Calculate total
+            total = sum(item["price"] * item["quantity"] for item in items)
+
+            # Get next order number using RPC function
+            response = self.client.rpc("get_next_order_number", {"p_session_id": session_id}).execute()
+            order_number = response.data
+
+            # Create order
+            order_response = self.client.table("orders").insert({
+                "session_id": session_id,
+                "order_number": order_number,
+                "items": items,
+                "total_amount": total,
+                "payment_method": payment_method,
+                "created_by": telegram_id
+            }).execute()
+
+            return order_response.data[0] if order_response.data else None
+        except Exception as e:
+            print(f"Error creating order: {e}")
+            return None
+
+    def get_orders_by_session(self, session_id: str, limit: int = 10, offset: int = 0) -> List[Dict]:
+        """Get orders for a session with pagination"""
+        try:
+            response = self.client.table("orders").select("*").eq("session_id", session_id).order("order_number", desc=False).range(offset, offset + limit - 1).execute()
+            return response.data
+        except Exception as e:
+            print(f"Error fetching orders: {e}")
+            return []
+
+    def get_order_by_id(self, order_id: str) -> Optional[Dict]:
+        """Get an order by ID"""
+        try:
+            response = self.client.table("orders").select("*").eq("id", order_id).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            print(f"Error fetching order: {e}")
+            return None
+
+    def delete_order(self, order_id: str) -> bool:
+        """Delete an order"""
+        try:
+            self.client.table("orders").delete().eq("id", order_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error deleting order: {e}")
+            return False
+
+    def get_order_count_by_session(self, session_id: str) -> int:
+        """Get total number of orders in a session"""
+        try:
+            response = self.client.table("orders").select("id", count="exact").eq("session_id", session_id).execute()
+            return response.count if response.count else 0
+        except Exception as e:
+            print(f"Error counting orders: {e}")
+            return 0
