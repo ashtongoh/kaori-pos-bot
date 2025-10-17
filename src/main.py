@@ -25,14 +25,8 @@ from src.bot.handlers.control_panel import (
 from src.bot.handlers.setup import (
     manage_menu_command,
     start_add_menu_item,
-    receive_menu_name,
-    receive_menu_size,
-    receive_menu_price,
     cancel_menu_setup,
-    delete_menu_item_callback,
-    MENU_NAME,
-    MENU_SIZE,
-    MENU_PRICE
+    delete_menu_item_callback
 )
 from src.bot.handlers.inventory import (
     start_session_callback,
@@ -96,17 +90,17 @@ def setup_handlers(app: Application):
     # Command handlers
     app.add_handler(CommandHandler("start", start_command))
 
-    # Menu setup conversation handler
-    menu_conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_add_menu_item, pattern="^add_menu_item$")],
-        states={
-            MENU_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_menu_name)],
-            MENU_SIZE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_menu_size)],
-            MENU_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_menu_price)]
-        },
-        fallbacks=[CommandHandler("cancel", cancel_menu_setup)]
-    )
-    app.add_handler(menu_conv_handler)
+    # Menu setup handlers - Manual state management
+    # Entry point for adding menu items
+    app.add_handler(CallbackQueryHandler(start_add_menu_item, pattern="^add_menu_item$"))
+
+    # Cancel handlers
+    app.add_handler(CallbackQueryHandler(cancel_menu_setup, pattern="^cancel_menu_setup$"))
+    app.add_handler(CommandHandler("cancel", cancel_menu_setup))
+
+    # Message handler for menu item setup flow (checks context.user_data['menu_state'])
+    from src.bot.handlers.setup import handle_menu_message
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_message), group=1)
 
     # Inventory/session start conversation handler
     inventory_conv_handler = ConversationHandler(

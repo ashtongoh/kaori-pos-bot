@@ -201,3 +201,18 @@ def get_pagination_keyboard(page: int, total_pages: int, prefix: str) -> InlineK
 def get_back_button() -> InlineKeyboardMarkup:
     """Simple back to control panel button"""
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")]])
+
+
+def get_cancel_button() -> InlineKeyboardMarkup:
+    """Cancel button for conversation handlers"""
+    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_menu_setup")]])
+
+
+def get_add_another_menu_item_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard after adding a menu item"""
+    keyboard = [
+        [InlineKeyboardButton("➕ Add Another Item", callback_data="add_menu_item")],
+        [InlineKeyboardButton("📋 View Menu", callback_data="manage_menu")],
+        [InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
