@@ -42,10 +42,14 @@ async def show_sales_dashboard(update: Update, context: ContextTypes.DEFAULT_TYP
     # Get order count for session
     order_count = db.get_order_count_by_session(session['id'])
     total_sales = session.get('total_sales', 0)
+    started_at = format_full_datetime(session.get('started_at'))
+    started_by = session.get('started_by', 'Unknown')
 
     text = (
-        f"🟢 *Active Session*\n\n"
-        f"💰 *Total Sales:* {format_currency(total_sales)}\n"
+        f"💰 *Sales Dashboard*\n\n"
+        f"🟢 Session started: {started_at}\n"
+        f"👤 Started by: User ID {started_by}\n\n"
+        f"💵 *Total Sales:* {format_currency(total_sales)}\n"
         f"📝 *Orders:* {order_count}\n\n"
         f"Choose an option:"
     )
@@ -62,6 +66,24 @@ async def show_sales_dashboard(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=get_sales_dashboard_keyboard(total_sales),
             parse_mode="Markdown"
         )
+
+
+@require_auth_callback
+async def join_session_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Join an active session (redirect to dashboard)"""
+    query = update.callback_query
+    await query.answer("Joining session...")
+
+    await show_sales_dashboard(update, context)
+
+
+@require_auth_callback
+async def refresh_dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Refresh the sales dashboard"""
+    query = update.callback_query
+    await query.answer("Refreshing...")
+
+    await show_sales_dashboard(update, context)
 
 
 @require_auth_callback

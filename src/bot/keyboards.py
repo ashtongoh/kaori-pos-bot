@@ -5,14 +5,22 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from typing import List, Dict
 
 
-def get_control_panel_keyboard() -> InlineKeyboardMarkup:
+def get_control_panel_keyboard(active_session=None) -> InlineKeyboardMarkup:
     """Get the main control panel keyboard"""
-    keyboard = [
-        [InlineKeyboardButton("🟢 Start Session", callback_data="start_session")],
+    keyboard = []
+
+    if active_session:
+        # Show "Join Session" button if there's an active session
+        keyboard.append([InlineKeyboardButton("📱 Join Active Session", callback_data="join_session")])
+    else:
+        # Show "Start Session" button if no active session
+        keyboard.append([InlineKeyboardButton("🟢 Start Session", callback_data="start_session")])
+
+    keyboard.extend([
         [InlineKeyboardButton("📊 View Past Sales", callback_data="view_sales")],
         [InlineKeyboardButton("📦 View Past Inventory", callback_data="view_inventory")],
         [InlineKeyboardButton("📋 Manage Menu", callback_data="manage_menu")]
-    ]
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -24,7 +32,10 @@ def get_sales_dashboard_keyboard(total_sales: float) -> InlineKeyboardMarkup:
         total_sales: Current session total sales
     """
     keyboard = [
-        [InlineKeyboardButton("➕ New Order", callback_data="new_order")],
+        [
+            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_dashboard"),
+            InlineKeyboardButton("➕ New Order", callback_data="new_order")
+        ],
         [InlineKeyboardButton("📝 View Orders", callback_data="view_orders")],
         [InlineKeyboardButton("🔴 End Session", callback_data="end_session")]
     ]
@@ -33,7 +44,8 @@ def get_sales_dashboard_keyboard(total_sales: float) -> InlineKeyboardMarkup:
 
 def get_menu_items_keyboard(menu_items: List[Dict], cart: Dict = None) -> InlineKeyboardMarkup:
     """
-    Get keyboard with menu items for ordering
+    Get keyboard with menu items for ordering in grid layout
+    Format: [Item Name] [Size 1] [Size 2] [Size 3]
 
     Args:
         menu_items: List of menu item dictionaries
@@ -41,19 +53,30 @@ def get_menu_items_keyboard(menu_items: List[Dict], cart: Dict = None) -> Inline
     """
     keyboard = []
 
-    # Add menu items (2 per row for better layout)
-    for i in range(0, len(menu_items), 2):
-        row = []
-        for j in range(2):
-            if i + j < len(menu_items):
-                item = menu_items[i + j]
-                # Show quantity in cart if exists
-                qty_indicator = ""
-                if cart and item['id'] in cart:
-                    qty_indicator = f" ({cart[item['id']]['quantity']})"
+    # Group items by name
+    items_by_name = {}
+    for item in menu_items:
+        name = item['name']
+        if name not in items_by_name:
+            items_by_name[name] = []
+        items_by_name[name].append(item)
 
-                button_text = f"{item['name']} {item['size']} ${item['price']:.2f}{qty_indicator}"
-                row.append(InlineKeyboardButton(button_text, callback_data=f"add_item:{item['id']}"))
+    # Build grid layout
+    for item_name, variants in items_by_name.items():
+        row = []
+
+        # Add item name button (non-clickable, just for display)
+        row.append(InlineKeyboardButton(f"📦 {item_name}", callback_data="noop"))
+
+        # Add size buttons
+        for variant in sorted(variants, key=lambda x: x['price']):  # Sort by price
+            qty_indicator = ""
+            if cart and variant['id'] in cart:
+                qty_indicator = f" ({cart[variant['id']]['quantity']})"
+
+            button_text = f"{variant['size']} ${variant['price']:.2f}{qty_indicator}"
+            row.append(InlineKeyboardButton(button_text, callback_data=f"add_item:{variant['id']}"))
+
         keyboard.append(row)
 
     # Add control buttons
@@ -172,14 +195,15 @@ def get_menu_management_keyboard(menu_items: List[Dict]) -> InlineKeyboardMarkup
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_pagination_keyboard(page: int, total_pages: int, prefix: str) -> InlineKeyboardMarkup:
+def get_pagination_keyboard(page: int, total_pages: int, prefix: str, active_session=None) -> InlineKeyboardMarkup:
     """
     Generic pagination keyboard
 
     Args:
         page: Current page (0-indexed)
         total_pages: Total number of pages
-        prefix: Callback data prefix (e.g., "sales_page", "inventory_page")
+        prefix: Callback data prefix (e.g., "view_sales", "view_inventory")
+        active_session: Optional active session dict to maintain context
     """
     keyboard = []
     nav_row = []
@@ -192,8 +216,14 @@ def get_pagination_keyboard(page: int, total_pages: int, prefix: str) -> InlineK
     if page < total_pages - 1:
         nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"{prefix}:{page + 1}"))
 
-    keyboard.append(nav_row)
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="control_panel")])
+    if nav_row:
+        keyboard.append(nav_row)
+
+    # Show appropriate back button based on active session
+    if active_session:
+        keyboard.append([InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")])
+    else:
+        keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="control_panel")])
 
     return InlineKeyboardMarkup(keyboard)
 
@@ -258,5 +288,44 @@ def get_back_to_menu_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [InlineKeyboardButton("📋 Back to Menu", callback_data="manage_menu")],
         [InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_skip_inventory_keyboard() -> InlineKeyboardMarkup:
+    """Skip button for inventory input"""
+    keyboard = [
+        [InlineKeyboardButton("⏭ Skip Inventory", callback_data="skip_inventory")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_inventory_start_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard for starting inventory input with cancel option"""
+    keyboard = [
+        [InlineKeyboardButton("📦 Start Adding Inventory", callback_data="start_adding_inventory")],
+        [InlineKeyboardButton("⏭ Skip Inventory", callback_data="skip_inventory")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_session_start")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_add_another_inventory_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard for asking if user wants to add another inventory item"""
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Yes", callback_data="add_another_inventory:yes"),
+            InlineKeyboardButton("❌ No", callback_data="add_another_inventory:no")
+        ],
+        [InlineKeyboardButton("🔙 Cancel", callback_data="cancel_session_start")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_inventory_skip_price_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard for skipping cost price during inventory input"""
+    keyboard = [
+        [InlineKeyboardButton("⏭ Skip Cost Price", callback_data="skip_inventory_price")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_session_start")]
     ]
     return InlineKeyboardMarkup(keyboard)

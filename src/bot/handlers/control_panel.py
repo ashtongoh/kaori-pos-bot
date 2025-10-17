@@ -22,16 +22,26 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_session = db.get_active_session()
 
     if active_session:
-        # Redirect to sales dashboard
-        from src.bot.handlers.sales import show_sales_dashboard
-        return await show_sales_dashboard(update, context)
+        # Show control panel with active session info
+        started_by = active_session.get('started_by', 'Unknown')
+        started_at = format_full_datetime(active_session.get('started_at'))
 
-    # Show control panel
-    await update.message.reply_text(
-        f"👋 Welcome to Kaori POS, {user.first_name}!\n\n"
-        "Use the buttons below to manage your business:",
-        reply_markup=get_control_panel_keyboard()
-    )
+        await update.message.reply_text(
+            f"👋 Welcome back, {user.first_name}!\n\n"
+            f"🟢 *Active Session*\n"
+            f"Started: {started_at}\n"
+            f"Started by: User ID {started_by}\n\n"
+            "Click 'Join Active Session' to continue working:",
+            reply_markup=get_control_panel_keyboard(active_session),
+            parse_mode="Markdown"
+        )
+    else:
+        # Show control panel
+        await update.message.reply_text(
+            f"👋 Welcome to Kaori POS, {user.first_name}!\n\n"
+            "Use the buttons below to manage your business:",
+            reply_markup=get_control_panel_keyboard()
+        )
 
 
 @require_auth
@@ -44,10 +54,17 @@ async def control_panel_callback(update: Update, context: ContextTypes.DEFAULT_T
     active_session = db.get_active_session()
 
     if active_session:
+        started_by = active_session.get('started_by', 'Unknown')
+        started_at = format_full_datetime(active_session.get('started_at'))
+
         await query.edit_message_text(
-            "⚠️ You have an active sale session.\n\n"
-            "Please end the current session before accessing the control panel.",
-            reply_markup=get_control_panel_keyboard()
+            "🏠 *Control Panel*\n\n"
+            f"🟢 *Active Session*\n"
+            f"Started: {started_at}\n"
+            f"Started by: User ID {started_by}\n\n"
+            "Choose an option:",
+            reply_markup=get_control_panel_keyboard(active_session),
+            parse_mode="Markdown"
         )
         return
 
@@ -65,6 +82,9 @@ async def view_past_sales_callback(update: Update, context: ContextTypes.DEFAULT
     query = update.callback_query
     await query.answer()
 
+    # Check if there's an active session
+    active_session = db.get_active_session()
+
     # Get page number from callback data if present
     page = 0
     if ':' in query.data:
@@ -81,7 +101,7 @@ async def view_past_sales_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(
             "📊 *Past Sales*\n\n"
             "No sales sessions found.",
-            reply_markup=get_control_panel_keyboard(),
+            reply_markup=get_control_panel_keyboard(active_session),
             parse_mode="Markdown"
         )
         return
@@ -90,12 +110,20 @@ async def view_past_sales_callback(update: Update, context: ContextTypes.DEFAULT
     lines = ["📊 *Past Sales Sessions:*\n"]
     for session in sessions:
         started = format_full_datetime(session['started_at']) if session.get('started_at') else "N/A"
-        status = "🟢 Active" if session['status'] == 'active' else "⚪ Ended"
+
+        if session['status'] == 'active':
+            status = "🟢 Active"
+            time_info = f"Started: {started}"
+        else:
+            status = "🔴 Ended"
+            ended = format_full_datetime(session['ended_at']) if session.get('ended_at') else "N/A"
+            time_info = f"Started: {started}\nEnded: {ended}"
+
         total = session.get('total_sales', 0)
 
         lines.append(
             f"{status}\n"
-            f"Started: {started}\n"
+            f"{time_info}\n"
             f"Total: ${total:.2f}\n"
         )
 
@@ -106,50 +134,72 @@ async def view_past_sales_callback(update: Update, context: ContextTypes.DEFAULT
 
     await query.edit_message_text(
         text,
-        reply_markup=get_pagination_keyboard(page, total_pages, "view_sales"),
+        reply_markup=get_pagination_keyboard(page, total_pages, "view_sales", active_session),
         parse_mode="Markdown"
     )
 
 
 @require_auth
 async def view_past_inventory_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """View past inventory logs"""
+    """View past inventory logs with pagination"""
     query = update.callback_query
     await query.answer()
 
-    # Get the most recent session
-    sessions = db.get_past_sessions(limit=1)
+    # Check if there's an active session
+    active_session = db.get_active_session()
+
+    # Get page number from callback data if present
+    page = 0
+    if ':' in query.data:
+        page = int(query.data.split(':')[1])
+
+    # Pagination settings
+    per_page = 5  # Reduced per page since we're showing detailed items
+    offset = page * per_page
+
+    # Get sessions with inventory
+    sessions = db.get_sessions_with_inventory(limit=per_page, offset=offset)
 
     if not sessions:
         await query.edit_message_text(
             "📦 *Past Inventory*\n\n"
             "No inventory logs found.",
-            reply_markup=get_control_panel_keyboard(),
+            reply_markup=get_control_panel_keyboard(active_session),
             parse_mode="Markdown"
         )
         return
 
-    recent_session = sessions[0]
-    inventory = db.get_inventory_by_session(recent_session['id'])
+    # Format sessions list with individual items
+    lines = ["📦 *Past Inventory Sessions:*\n"]
+    for session in sessions:
+        started = format_full_datetime(session['started_at']) if session.get('started_at') else "N/A"
 
-    if not inventory:
-        await query.edit_message_text(
-            "📦 *Past Inventory*\n\n"
-            f"Session: {format_full_datetime(recent_session['started_at'])}\n\n"
-            "No inventory logged for this session.",
-            reply_markup=get_control_panel_keyboard(),
-            parse_mode="Markdown"
-        )
-        return
+        if session['status'] == 'active':
+            status = "🟢 Active"
+            time_info = f"Started: {started}"
+        else:
+            status = "🔴 Ended"
+            ended = format_full_datetime(session['ended_at']) if session.get('ended_at') else "N/A"
+            time_info = f"Started: {started}\nEnded: {ended}"
 
-    text = (
-        f"📦 *Past Inventory*\n\n"
-        f"Session: {format_full_datetime(recent_session['started_at'])}\n\n"
-        f"{format_inventory_list(inventory)}"
-    )
+        lines.append(f"{status}\n{time_info}")
+
+        # Get and display individual inventory items
+        inventory = db.get_inventory_by_session(session['id'])
+        if inventory:
+            lines.append(format_inventory_list(inventory))
+        else:
+            lines.append("No items logged")
+
+        lines.append("")  # Add spacing between sessions
+
+    text = "\n".join(lines)
+
+    # Calculate total pages
+    total_pages = page + 2 if len(sessions) == per_page else page + 1
 
     await query.edit_message_text(
         text,
-        reply_markup=get_control_panel_keyboard(),
+        reply_markup=get_pagination_keyboard(page, total_pages, "view_inventory", active_session),
         parse_mode="Markdown"
     )

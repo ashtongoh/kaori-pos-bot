@@ -18,17 +18,21 @@ def get_singapore_time() -> datetime:
     return datetime.now(SGT)
 
 
-def format_datetime(dt: datetime, format_str: str = "%Y-%m-%d %I:%M %p") -> str:
+def format_datetime(dt, format_str: str = "%Y-%m-%d %I:%M %p") -> str:
     """
-    Format a datetime object to a string in Singapore timezone
+    Format a datetime object or ISO string to a string in Singapore timezone
 
     Args:
-        dt: Datetime object to format
+        dt: Datetime object or ISO string to format
         format_str: Format string (default: "2025-10-18 02:30 PM")
 
     Returns:
         str: Formatted datetime string
     """
+    # Handle string input (ISO format from database)
+    if isinstance(dt, str):
+        dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+
     if dt.tzinfo is None:
         # Assume UTC if no timezone info
         dt = pytz.utc.localize(dt)

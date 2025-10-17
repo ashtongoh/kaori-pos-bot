@@ -37,19 +37,17 @@ from src.bot.handlers.setup import (
 )
 from src.bot.handlers.inventory import (
     start_session_callback,
-    receive_inventory_item_name,
-    receive_inventory_quantity,
-    receive_inventory_price,
-    ask_more_inventory,
+    start_adding_inventory_callback,
     skip_inventory,
-    cancel_inventory,
-    INV_ITEM_NAME,
-    INV_QUANTITY,
-    INV_PRICE,
-    INV_MORE
+    cancel_session_start_callback,
+    add_another_inventory_callback,
+    skip_inventory_price_callback,
+    handle_inventory_message
 )
 from src.bot.handlers.sales import (
     show_sales_dashboard,
+    join_session_callback,
+    refresh_dashboard_callback,
     new_order_callback,
     add_item_to_cart_callback,
     clear_cart_callback,
@@ -96,6 +94,7 @@ def setup_handlers(app: Application):
 
     # Command handlers
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("resume", start_command))  # /resume acts like /start
 
     # Menu setup handlers - Manual state management
     # Entry point for adding menu items
@@ -109,21 +108,16 @@ def setup_handlers(app: Application):
     from src.bot.handlers.setup import handle_menu_message
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_message), group=1)
 
-    # Inventory/session start conversation handler
-    inventory_conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_session_callback, pattern="^start_session$")],
-        states={
-            INV_ITEM_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_inventory_item_name),
-                CommandHandler("skip", skip_inventory)
-            ],
-            INV_QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_inventory_quantity)],
-            INV_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_inventory_price)],
-            INV_MORE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_more_inventory)]
-        },
-        fallbacks=[CommandHandler("cancel", cancel_inventory)]
-    )
-    app.add_handler(inventory_conv_handler)
+    # Message handler for inventory flow (checks context.user_data['inventory_state'])
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_inventory_message), group=2)
+
+    # Inventory session start handlers - Manual state management
+    app.add_handler(CallbackQueryHandler(start_session_callback, pattern="^start_session$"))
+    app.add_handler(CallbackQueryHandler(start_adding_inventory_callback, pattern="^start_adding_inventory$"))
+    app.add_handler(CallbackQueryHandler(skip_inventory, pattern="^skip_inventory$"))
+    app.add_handler(CallbackQueryHandler(cancel_session_start_callback, pattern="^cancel_session_start$"))
+    app.add_handler(CallbackQueryHandler(add_another_inventory_callback, pattern="^add_another_inventory:"))
+    app.add_handler(CallbackQueryHandler(skip_inventory_price_callback, pattern="^skip_inventory_price$"))
 
     # Control panel callbacks
     app.add_handler(CallbackQueryHandler(control_panel_callback, pattern="^control_panel$"))
@@ -142,6 +136,8 @@ def setup_handlers(app: Application):
     app.add_handler(CallbackQueryHandler(handle_add_more_sizes_callback, pattern="^add_more_sizes:"))
 
     # Sales dashboard callbacks
+    app.add_handler(CallbackQueryHandler(join_session_callback, pattern="^join_session$"))
+    app.add_handler(CallbackQueryHandler(refresh_dashboard_callback, pattern="^refresh_dashboard$"))
     app.add_handler(CallbackQueryHandler(new_order_callback, pattern="^new_order$"))
     app.add_handler(CallbackQueryHandler(add_item_to_cart_callback, pattern="^add_item:"))
     app.add_handler(CallbackQueryHandler(clear_cart_callback, pattern="^clear_cart$"))

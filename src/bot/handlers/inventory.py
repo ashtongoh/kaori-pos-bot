@@ -1,14 +1,17 @@
 """
-Inventory input handlers
+Inventory input handlers - Manual state management
 """
 from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes
 from src.bot.middleware import require_auth
 from src.database.models import Database
 from src.utils.formatters import format_inventory_list
-
-# Conversation states
-INV_ITEM_NAME, INV_QUANTITY, INV_PRICE, INV_MORE = range(4)
+from src.bot.keyboards import (
+    get_inventory_start_keyboard,
+    get_add_another_inventory_keyboard,
+    get_inventory_skip_price_keyboard,
+    get_control_panel_keyboard
+)
 
 db = Database()
 
@@ -26,32 +29,160 @@ async def start_session_callback(update: Update, context: ContextTypes.DEFAULT_T
             "⚠️ There is already an active session!\n\n"
             "Please end the current session first."
         )
-        return ConversationHandler.END
+        return
 
     # Initialize inventory list in context
     context.user_data['inventory'] = []
+    context.user_data['inventory_state'] = None
 
     await query.edit_message_text(
         "📦 *Starting New Session*\n\n"
-        "Let's log your starting inventory.\n\n"
-        "Enter the item name (or send /skip to skip inventory):",
+        "Would you like to log your starting inventory?\n\n"
+        "You can add inventory items now, skip, or cancel:",
+        reply_markup=get_inventory_start_keyboard(),
         parse_mode="Markdown"
     )
 
-    return INV_ITEM_NAME
+
+@require_auth
+async def start_adding_inventory_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User chose to start adding inventory"""
+    query = update.callback_query
+    await query.answer()
+
+    # Set state to expect item name
+    context.user_data['inventory_state'] = 'AWAITING_ITEM_NAME'
+
+    inventory = context.user_data.get('inventory', [])
+
+    if inventory:
+        # Show current inventory if any items already added
+        inv_text = format_inventory_list(inventory)
+        await query.edit_message_text(
+            f"📦 *Current Inventory:*\n\n{inv_text}\n\n"
+            "Enter the name of the next inventory item:",
+            parse_mode="Markdown"
+        )
+    else:
+        await query.edit_message_text(
+            "📦 *Adding Inventory*\n\n"
+            "Enter the name of the inventory item:",
+            parse_mode="Markdown"
+        )
 
 
 @require_auth
+async def skip_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Skip inventory input (works for both command and callback)"""
+    # Handle callback query
+    if update.callback_query:
+        await update.callback_query.answer("Skipping inventory...")
+
+    context.user_data['inventory'] = []
+    context.user_data['inventory_state'] = None
+    return await finish_inventory_input(update, context)
+
+
+@require_auth
+async def cancel_session_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancel session start and return to control panel"""
+    query = update.callback_query
+    await query.answer()
+
+    # Clear inventory data
+    context.user_data.pop('inventory', None)
+    context.user_data.pop('inventory_state', None)
+    context.user_data.pop('current_inv_item', None)
+
+    await query.edit_message_text(
+        "❌ *Session Creation Cancelled*\n\n"
+        "Returning to control panel...",
+        reply_markup=get_control_panel_keyboard(),
+        parse_mode="Markdown"
+    )
+
+
+@require_auth
+async def add_another_inventory_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle 'add another inventory item?' yes/no buttons"""
+    query = update.callback_query
+    response = query.data.split(':')[1]  # 'yes' or 'no'
+    await query.answer()
+
+    if response == 'yes':
+        # Set state to expect item name
+        context.user_data['inventory_state'] = 'AWAITING_ITEM_NAME'
+
+        inventory = context.user_data.get('inventory', [])
+        inv_text = format_inventory_list(inventory)
+
+        await query.edit_message_text(
+            f"📦 *Current Inventory:*\n\n{inv_text}\n\n"
+            "Enter the name of the next inventory item:",
+            parse_mode="Markdown"
+        )
+    else:
+        # User said no, finish inventory input
+        await finish_inventory_input(update, context)
+
+
+@require_auth
+async def skip_inventory_price_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Skip cost price input"""
+    query = update.callback_query
+    await query.answer()
+
+    # Don't set cost_price, just add the item to inventory
+    current_item = context.user_data.get('current_inv_item', {})
+
+    # Add to inventory list
+    inventory = context.user_data.get('inventory', [])
+    inventory.append(current_item)
+    context.user_data['inventory'] = inventory
+
+    # Clear current item and state
+    context.user_data.pop('current_inv_item', None)
+    context.user_data['inventory_state'] = None
+
+    # Show current inventory and ask if they want to add more
+    inv_text = format_inventory_list(inventory)
+
+    await query.edit_message_text(
+        f"✅ *Item Added!*\n\n"
+        f"{inv_text}\n\n"
+        "Add another inventory item?",
+        reply_markup=get_add_another_inventory_keyboard(),
+        parse_mode="Markdown"
+    )
+
+
+@require_auth
+async def handle_inventory_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle text messages during inventory input flow"""
+    state = context.user_data.get('inventory_state')
+
+    if not state:
+        return  # Not in inventory flow, ignore
+
+    if state == 'AWAITING_ITEM_NAME':
+        await receive_inventory_item_name(update, context)
+    elif state == 'AWAITING_QUANTITY':
+        await receive_inventory_quantity(update, context)
+    elif state == 'AWAITING_COST_PRICE':
+        await receive_inventory_price(update, context)
+
+
 async def receive_inventory_item_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Receive inventory item name"""
     item_name = update.message.text.strip()
 
     if not item_name:
         await update.message.reply_text("❌ Item name cannot be empty. Please try again:")
-        return INV_ITEM_NAME
+        return
 
     # Store temporarily
     context.user_data['current_inv_item'] = {'item_name': item_name}
+    context.user_data['inventory_state'] = 'AWAITING_QUANTITY'
 
     await update.message.reply_text(
         f"✅ Item: *{item_name}*\n\n"
@@ -59,10 +190,7 @@ async def receive_inventory_item_name(update: Update, context: ContextTypes.DEFA
         parse_mode="Markdown"
     )
 
-    return INV_QUANTITY
 
-
-@require_auth
 async def receive_inventory_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Receive inventory quantity"""
     quantity_text = update.message.text.strip()
@@ -75,83 +203,58 @@ async def receive_inventory_quantity(update: Update, context: ContextTypes.DEFAU
         await update.message.reply_text(
             "❌ Invalid quantity. Please enter a valid number:"
         )
-        return INV_QUANTITY
+        return
 
     # Store quantity
     context.user_data['current_inv_item']['quantity'] = quantity
+    context.user_data['inventory_state'] = 'AWAITING_COST_PRICE'
 
     await update.message.reply_text(
         f"✅ Quantity: *{quantity}*\n\n"
-        "Enter the cost price (or send /skip if not tracking cost):",
+        "Enter the cost price, or click Skip if not tracking cost:",
+        reply_markup=get_inventory_skip_price_keyboard(),
         parse_mode="Markdown"
     )
 
-    return INV_PRICE
 
-
-@require_auth
 async def receive_inventory_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Receive inventory cost price"""
     price_text = update.message.text.strip()
 
-    cost_price = None
-    if price_text.lower() != '/skip':
-        try:
-            cost_price = float(price_text)
-            if cost_price < 0:
-                raise ValueError("Price cannot be negative")
-        except ValueError:
-            await update.message.reply_text(
-                "❌ Invalid price. Please enter a valid number (or /skip):"
-            )
-            return INV_PRICE
+    try:
+        cost_price = float(price_text)
+        if cost_price < 0:
+            raise ValueError("Price cannot be negative")
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Invalid price. Please enter a valid number (or click Skip):"
+        )
+        return
 
     # Store cost price
-    if cost_price is not None:
-        context.user_data['current_inv_item']['cost_price'] = cost_price
+    context.user_data['current_inv_item']['cost_price'] = cost_price
 
     # Add to inventory list
     inventory = context.user_data.get('inventory', [])
     inventory.append(context.user_data['current_inv_item'])
     context.user_data['inventory'] = inventory
 
-    # Clear current item
+    # Clear current item and state
     context.user_data.pop('current_inv_item', None)
+    context.user_data['inventory_state'] = None
 
-    # Show current inventory
+    # Show current inventory and ask if they want to add more
     inv_text = format_inventory_list(inventory)
 
     await update.message.reply_text(
+        f"✅ *Item Added!*\n\n"
         f"{inv_text}\n\n"
-        "Add another item? (yes/no):"
+        "Add another inventory item?",
+        reply_markup=get_add_another_inventory_keyboard(),
+        parse_mode="Markdown"
     )
 
-    return INV_MORE
 
-
-@require_auth
-async def ask_more_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ask if user wants to add more inventory"""
-    response = update.message.text.strip().lower()
-
-    if response in ['yes', 'y']:
-        await update.message.reply_text("Enter the next item name:")
-        return INV_ITEM_NAME
-    elif response in ['no', 'n']:
-        return await finish_inventory_input(update, context)
-    else:
-        await update.message.reply_text("Please respond with 'yes' or 'no':")
-        return INV_MORE
-
-
-@require_auth
-async def skip_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Skip inventory input"""
-    context.user_data['inventory'] = []
-    return await finish_inventory_input(update, context)
-
-
-@require_auth
 async def finish_inventory_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Finish inventory input and create session"""
     inventory = context.user_data.get('inventory', [])
@@ -161,10 +264,16 @@ async def finish_inventory_input(update: Update, context: ContextTypes.DEFAULT_T
     session = db.create_session(telegram_id)
 
     if not session:
-        await update.message.reply_text(
-            "❌ Failed to create session. Please try again later."
-        )
-        return ConversationHandler.END
+        # Handle both callback query and message
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                "❌ Failed to create session. Please try again later."
+            )
+        else:
+            await update.message.reply_text(
+                "❌ Failed to create session. Please try again later."
+            )
+        return
 
     # Save inventory logs
     for inv_item in inventory:
@@ -177,29 +286,26 @@ async def finish_inventory_input(update: Update, context: ContextTypes.DEFAULT_T
 
     # Clear context
     context.user_data.pop('inventory', None)
+    context.user_data.pop('inventory_state', None)
     context.user_data.pop('current_inv_item', None)
 
     # Show sales dashboard
     from src.bot.handlers.sales import show_sales_dashboard
-    await update.message.reply_text(
-        "✅ *Session Started!*\n\n"
-        "Your sale session is now active.",
-        parse_mode="Markdown"
-    )
 
-    # Create a mock update object for showing dashboard
+    # Handle both callback query and message
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
+            "✅ *Session Started!*\n\n"
+            "Your sale session is now active.",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            "✅ *Session Started!*\n\n"
+            "Your sale session is now active.",
+            parse_mode="Markdown"
+        )
+
+    # Store session ID and show dashboard
     context.user_data['active_session_id'] = session['id']
-    return await show_sales_dashboard(update, context)
-
-
-@require_auth
-async def cancel_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancel inventory input"""
-    context.user_data.pop('inventory', None)
-    context.user_data.pop('current_inv_item', None)
-
-    await update.message.reply_text(
-        "❌ Session creation cancelled."
-    )
-
-    return ConversationHandler.END
+    await show_sales_dashboard(update, context)

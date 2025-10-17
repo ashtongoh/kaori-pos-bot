@@ -186,6 +186,27 @@ class Database:
             print(f"Error fetching inventory logs: {e}")
             return []
 
+    def get_sessions_with_inventory(self, limit: int = 10, offset: int = 0) -> List[Dict]:
+        """Get sessions that have inventory logs with pagination"""
+        try:
+            # Get all sessions with inventory, ordered by started_at descending
+            response = self.client.table("sale_sessions").select(
+                "id, started_at, ended_at, started_by, status"
+            ).order("started_at", desc=True).range(offset, offset + limit - 1).execute()
+
+            # Filter sessions that have inventory
+            sessions_with_inventory = []
+            for session in response.data:
+                inventory = self.get_inventory_by_session(session['id'])
+                if inventory:
+                    session['inventory_count'] = len(inventory)
+                    sessions_with_inventory.append(session)
+
+            return sessions_with_inventory
+        except Exception as e:
+            print(f"Error fetching sessions with inventory: {e}")
+            return []
+
     # ===== ORDERS =====
 
     def create_order(self, session_id: str, items: List[Dict], payment_method: str, telegram_id: int) -> Optional[Dict]:

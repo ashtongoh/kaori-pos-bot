@@ -133,24 +133,31 @@ async def confirm_delete_order_callback(update: Update, context: ContextTypes.DE
         return
 
     order_number = order['order_number']
+    total_amount = order['total_amount']
+    payment_method = order['payment_method']
 
     # Delete order
     success = db.delete_order(order_id)
 
+    # Get active session to show dashboard keyboard
+    session = db.get_active_session()
+
     if success:
+        from src.utils.formatters import format_currency
         await query.edit_message_text(
-            f"✅ Order #{order_number} deleted successfully!",
+            f"✅ *Order Deleted Successfully!*\n\n"
+            f"*Order #{order_number}*\n"
+            f"Amount: {format_currency(total_amount)}\n"
+            f"Payment: {payment_method.title()}\n\n"
+            "The session total has been updated.",
+            reply_markup=get_sales_dashboard_keyboard(session.get('total_sales', 0) if session else 0),
             parse_mode="Markdown"
         )
-
-        # Wait a moment then return to orders view
-        import asyncio
-        await asyncio.sleep(2)
-
-        # Reset callback data to view orders
-        query.data = "view_orders"
-        await view_orders_callback(update, context)
     else:
         await query.edit_message_text(
-            "❌ Failed to delete order. Please try again."
+            f"❌ *Failed to Delete Order*\n\n"
+            f"Order #{order_number} could not be deleted.\n"
+            "Please try again.",
+            reply_markup=get_sales_dashboard_keyboard(session.get('total_sales', 0) if session else 0),
+            parse_mode="Markdown"
         )

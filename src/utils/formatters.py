@@ -104,12 +104,27 @@ def format_order_summary(order: Dict) -> str:
     Returns:
         str: Formatted order summary
     """
+    from src.utils.timezone import format_full_datetime
+
     lines = [
-        f"📝 *Order #{order['order_number']}*\n",
+        f"📝 *Order #{order['order_number']}*\n"
+    ]
+
+    # Add timestamp if available
+    if order.get('created_at'):
+        lines.append(f"🕐 Created: {format_full_datetime(order['created_at'])}")
+
+    # Add created by if available
+    if order.get('created_by'):
+        lines.append(f"👤 Created by: User ID {order['created_by']}\n")
+    else:
+        lines.append("")  # Empty line for spacing
+
+    lines.extend([
         format_order_items(order['items']),
         f"\n*Total:* {format_currency(order['total_amount'])}",
         f"*Payment:* {order['payment_method'].title()}"
-    ]
+    ])
 
     return "\n".join(lines)
 
