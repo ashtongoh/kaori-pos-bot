@@ -69,6 +69,33 @@ class Database:
             print(f"Error adding menu item: {e}")
             return None
 
+    def update_menu_item_name(self, item_id: str, name: str) -> bool:
+        """Update the name of a menu item"""
+        try:
+            self.client.table("menu_items").update({"name": name}).eq("id", item_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error updating menu item name: {e}")
+            return False
+
+    def update_menu_item_size(self, item_id: str, size: str) -> bool:
+        """Update the size of a menu item"""
+        try:
+            self.client.table("menu_items").update({"size": size}).eq("id", item_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error updating menu item size: {e}")
+            return False
+
+    def update_menu_item_price(self, item_id: str, price: float) -> bool:
+        """Update the price of a menu item"""
+        try:
+            self.client.table("menu_items").update({"price": price}).eq("id", item_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error updating menu item price: {e}")
+            return False
+
     def delete_menu_item(self, item_id: str) -> bool:
         """Soft delete a menu item"""
         try:

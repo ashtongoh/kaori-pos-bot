@@ -216,3 +216,47 @@ def get_add_another_menu_item_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")]
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_yes_no_keyboard(yes_callback: str, no_callback: str) -> InlineKeyboardMarkup:
+    """Generic yes/no keyboard with custom callbacks"""
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Yes", callback_data=yes_callback),
+            InlineKeyboardButton("❌ No", callback_data=no_callback)
+        ],
+        [InlineKeyboardButton("🔙 Cancel", callback_data="cancel_menu_setup")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_edit_menu_item_keyboard(item_id: str) -> InlineKeyboardMarkup:
+    """Keyboard for editing a specific menu item"""
+    keyboard = [
+        [InlineKeyboardButton("📝 Edit Name", callback_data=f"edit_name:{item_id}")],
+        [InlineKeyboardButton("📏 Edit Size", callback_data=f"edit_size:{item_id}")],
+        [InlineKeyboardButton("💰 Edit Price", callback_data=f"edit_price:{item_id}")],
+        [InlineKeyboardButton("🗑 Delete Item", callback_data=f"confirm_delete_menu_item:{item_id}")],
+        [InlineKeyboardButton("🔙 Back to Menu", callback_data="manage_menu")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_confirm_delete_menu_item_keyboard(item_id: str) -> InlineKeyboardMarkup:
+    """Keyboard for confirming menu item deletion"""
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Yes, Delete", callback_data=f"delete_menu_item:{item_id}"),
+            InlineKeyboardButton("❌ Cancel", callback_data=f"edit_menu_item:{item_id}")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_back_to_menu_keyboard() -> InlineKeyboardMarkup:
+    """Back to menu management button"""
+    keyboard = [
+        [InlineKeyboardButton("📋 Back to Menu", callback_data="manage_menu")],
+        [InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")]
+    ]
+    return InlineKeyboardMarkup(keyboard)

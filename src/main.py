@@ -26,7 +26,14 @@ from src.bot.handlers.setup import (
     manage_menu_command,
     start_add_menu_item,
     cancel_menu_setup,
-    delete_menu_item_callback
+    delete_menu_item_callback,
+    confirm_delete_menu_item_callback,
+    edit_menu_item_callback,
+    edit_name_callback,
+    edit_size_callback,
+    edit_price_callback,
+    handle_has_sizes_callback,
+    handle_add_more_sizes_callback
 )
 from src.bot.handlers.inventory import (
     start_session_callback,
@@ -125,7 +132,14 @@ def setup_handlers(app: Application):
 
     # Menu management callbacks
     app.add_handler(CallbackQueryHandler(manage_menu_command, pattern="^manage_menu$"))
+    app.add_handler(CallbackQueryHandler(edit_menu_item_callback, pattern="^edit_menu_item:"))
+    app.add_handler(CallbackQueryHandler(edit_name_callback, pattern="^edit_name:"))
+    app.add_handler(CallbackQueryHandler(edit_size_callback, pattern="^edit_size:"))
+    app.add_handler(CallbackQueryHandler(edit_price_callback, pattern="^edit_price:"))
+    app.add_handler(CallbackQueryHandler(confirm_delete_menu_item_callback, pattern="^confirm_delete_menu_item:"))
     app.add_handler(CallbackQueryHandler(delete_menu_item_callback, pattern="^delete_menu_item:"))
+    app.add_handler(CallbackQueryHandler(handle_has_sizes_callback, pattern="^has_multiple_sizes:"))
+    app.add_handler(CallbackQueryHandler(handle_add_more_sizes_callback, pattern="^add_more_sizes:"))
 
     # Sales dashboard callbacks
     app.add_handler(CallbackQueryHandler(new_order_callback, pattern="^new_order$"))
