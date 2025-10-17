@@ -160,23 +160,37 @@ def setup_handlers(app: Application):
     logger.info("All handlers registered successfully")
 
 
-def webhook_update(update_data):
-    """Process webhook update - runs async task in event loop"""
-    async def process():
-        update = Update.de_json(update_data, application.bot)
-        await application.process_update(update)
-
-    # Run the async function in the existing event loop
-    asyncio.create_task(process())
-
-
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     """Handle incoming webhook requests"""
     if request.method == "POST":
         update_data = request.get_json(force=True)
-        webhook_update(update_data)
-        return "OK"
+
+        # Process the update synchronously using asyncio.run
+        try:
+            async def process_update():
+                update = Update.de_json(update_data, application.bot)
+                await application.process_update(update)
+
+            # Get or create event loop
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is already running, create a new one
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # Run the async function
+            loop.run_until_complete(process_update())
+
+            return "OK", 200
+        except Exception as e:
+            logger.error(f"Error processing webhook: {e}", exc_info=True)
+            return "Error", 500
+
     return "Method not allowed", 405
 
 
