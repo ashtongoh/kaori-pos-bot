@@ -3,6 +3,7 @@ Main entry point for the Kori POS Bot
 """
 import os
 import logging
+import asyncio
 from dotenv import load_dotenv
 from flask import Flask, request
 from telegram import Update
@@ -159,19 +160,24 @@ def setup_handlers(app: Application):
     logger.info("All handlers registered successfully")
 
 
-async def webhook_update(update_data):
-    """Process webhook update"""
-    update = Update.de_json(update_data, application.bot)
-    await application.process_update(update)
+def webhook_update(update_data):
+    """Process webhook update - runs async task in event loop"""
+    async def process():
+        update = Update.de_json(update_data, application.bot)
+        await application.process_update(update)
+
+    # Run the async function in the existing event loop
+    asyncio.create_task(process())
 
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
-async def webhook():
+def webhook():
     """Handle incoming webhook requests"""
     if request.method == "POST":
         update_data = request.get_json(force=True)
-        await webhook_update(update_data)
+        webhook_update(update_data)
         return "OK"
+    return "Method not allowed", 405
 
 
 @app.route("/")
@@ -187,6 +193,25 @@ async def setup_webhook():
     logger.info(f"Webhook set to: {webhook_url}")
 
 
+def init_bot():
+    """Initialize bot application for webhook mode"""
+    global application
+
+    if application is None:
+        logger.info("Initializing bot application...")
+        application = Application.builder().token(BOT_TOKEN).build()
+        setup_handlers(application)
+
+        # Initialize the application synchronously
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(application.initialize())
+        loop.run_until_complete(setup_webhook())
+        logger.info("Bot application initialized successfully")
+
+    return application
+
+
 def main():
     """Main function to run the bot"""
     global application
@@ -199,19 +224,10 @@ def main():
 
     # Run based on environment
     if ENVIRONMENT == "production" and WEBHOOK_URL:
-        # Production mode: Use webhook
+        # Production mode: Use webhook with Gunicorn
         logger.info("Running in PRODUCTION mode with webhook")
-
-        # Initialize the application
-        application.initialize()
-
-        # Setup webhook
-        import asyncio
-        asyncio.run(setup_webhook())
-
-        # Run Flask app
-        logger.info(f"Starting webhook server on port {PORT}")
-        app.run(host="0.0.0.0", port=PORT)
+        logger.info("Use Gunicorn to run this application")
+        # Initialization will happen when Gunicorn starts
     else:
         # Development mode: Use polling
         logger.info("Running in DEVELOPMENT mode with polling")
@@ -219,6 +235,11 @@ def main():
 
         # Run with polling
         application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+# Initialize bot when module is loaded (for Gunicorn)
+if ENVIRONMENT == "production" and WEBHOOK_URL:
+    init_bot()
 
 
 if __name__ == "__main__":
