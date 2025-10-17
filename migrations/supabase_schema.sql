@@ -1,4 +1,4 @@
--- Kaori POS Bot - Database Schema for Supabase
+-- Kori POS Bot - Database Schema for Supabase
 -- Run this script in your Supabase SQL Editor
 
 -- Table 1: Authorized Users

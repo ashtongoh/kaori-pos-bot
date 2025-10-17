@@ -65,7 +65,7 @@ def test_database_connection():
 
 if __name__ == "__main__":
     print("="*60)
-    print("Kaori POS Bot - Database Connection Test")
+    print("Kori POS Bot - Database Connection Test")
     print("="*60)
 
     success = test_database_connection()

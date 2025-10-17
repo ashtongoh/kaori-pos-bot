@@ -1,5 +1,5 @@
 """
-Main entry point for the Kaori POS Bot
+Main entry point for the Kori POS Bot
 """
 import os
 import logging
@@ -177,7 +177,7 @@ async def webhook():
 @app.route("/")
 def index():
     """Health check endpoint"""
-    return "Kaori POS Bot is running!"
+    return "Kori POS Bot is running!"
 
 
 async def setup_webhook():

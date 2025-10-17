@@ -1,5 +1,5 @@
 """
-Entry point to run the Kaori POS Bot
+Entry point to run the Kori POS Bot
 Run this file from the project root directory
 """
 import sys

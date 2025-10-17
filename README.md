@@ -1,4 +1,4 @@
-# Kaori POS Bot
+# Kori POS Bot
 
 A Telegram-based Point of Sale (POS) system for merchants to manage sales, inventory, and orders through a user-friendly chat interface.
 
@@ -23,7 +23,7 @@ A Telegram-based Point of Sale (POS) system for merchants to manage sales, inven
 ## Project Structure
 
 ```
-kaori-pos-bot/
+kori-pos-bot/
 ├── src/
 │   ├── bot/
 │   │   ├── handlers/
@@ -61,7 +61,7 @@ kaori-pos-bot/
 
 ```bash
 git clone <repository-url>
-cd kaori-pos-bot
+cd kori-pos-bot
 ```
 
 ### 3. Create Virtual Environment
@@ -165,8 +165,8 @@ apt install -y python3 python3-pip python3-venv nginx certbot python3-certbot-ng
 
 ```bash
 cd /opt
-git clone <repository-url> kaori-pos-bot
-cd kaori-pos-bot
+git clone <repository-url> kori-pos-bot
+cd kori-pos-bot
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -184,7 +184,7 @@ nano .env  # Edit with your credentials
 Create nginx configuration:
 
 ```bash
-nano /etc/nginx/sites-available/kaori-pos-bot
+nano /etc/nginx/sites-available/kori-pos-bot
 ```
 
 Add:
@@ -205,7 +205,7 @@ server {
 Enable the site:
 
 ```bash
-ln -s /etc/nginx/sites-available/kaori-pos-bot /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/kori-pos-bot /etc/nginx/sites-enabled/
 nginx -t
 systemctl restart nginx
 ```
@@ -219,22 +219,22 @@ certbot --nginx -d your-domain.com
 ### 8. Create Systemd Service
 
 ```bash
-nano /etc/systemd/system/kaori-pos-bot.service
+nano /etc/systemd/system/kori-pos-bot.service
 ```
 
 Add:
 
 ```ini
 [Unit]
-Description=Kaori POS Bot
+Description=Kori POS Bot
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/kaori-pos-bot
-Environment="PATH=/opt/kaori-pos-bot/venv/bin"
-ExecStart=/opt/kaori-pos-bot/venv/bin/python src/main.py
+WorkingDirectory=/opt/kori-pos-bot
+Environment="PATH=/opt/kori-pos-bot/venv/bin"
+ExecStart=/opt/kori-pos-bot/venv/bin/python src/main.py
 Restart=always
 
 [Install]
@@ -245,15 +245,15 @@ Enable and start:
 
 ```bash
 systemctl daemon-reload
-systemctl enable kaori-pos-bot
-systemctl start kaori-pos-bot
-systemctl status kaori-pos-bot
+systemctl enable kori-pos-bot
+systemctl start kori-pos-bot
+systemctl status kori-pos-bot
 ```
 
 ### 9. Check Logs
 
 ```bash
-journalctl -u kaori-pos-bot -f
+journalctl -u kori-pos-bot -f
 ```
 
 ## Usage Guide
@@ -309,8 +309,8 @@ journalctl -u kaori-pos-bot -f
 
 ### Bot not responding
 
-1. Check if the bot is running: `systemctl status kaori-pos-bot`
-2. Check logs: `journalctl -u kaori-pos-bot -f`
+1. Check if the bot is running: `systemctl status kori-pos-bot`
+2. Check logs: `journalctl -u kori-pos-bot -f`
 3. Verify webhook is set: Check Telegram API response
 4. Ensure SSL certificate is valid
 

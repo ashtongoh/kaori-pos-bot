@@ -38,7 +38,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # Show control panel
         await update.message.reply_text(
-            f"👋 Welcome to Kaori POS, {user.first_name}!\n\n"
+            f"👋 Welcome to Kori POS, {user.first_name}!\n\n"
             "Use the buttons below to manage your business:",
             reply_markup=get_control_panel_keyboard()
         )

@@ -1,1 +1,1 @@
-"""Kaori POS Bot package"""
+"""Kori POS Bot package"""

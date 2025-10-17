@@ -1,4 +1,4 @@
-# Kaori POS Bot - Project Documentation
+# Kori POS Bot - Project Documentation
 
 ## Project Overview
 A Telegram bot-based Point of Sale (POS) system for merchants to manage sales, inventory, and orders through a user-friendly chat interface.
@@ -67,7 +67,7 @@ flask==3.0.0
 
 ## Project Structure
 ```
-kaori-pos-bot/
+kori-pos-bot/
 ├── src/
 │   ├── bot/
 │   │   ├── __init__.py
