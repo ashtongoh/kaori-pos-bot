@@ -1,7 +1,23 @@
 """
 Message formatting utilities
 """
-from typing import List, Dict
+from typing import List, Dict, Optional
+
+
+def format_user_display_name(telegram_id: int, full_name: Optional[str] = None) -> str:
+    """
+    Format user display name - prefer full_name over telegram_id
+
+    Args:
+        telegram_id: User's Telegram ID
+        full_name: Optional full name from database
+
+    Returns:
+        str: Display name (full name if available, otherwise "User ID {telegram_id}")
+    """
+    if full_name:
+        return full_name
+    return f"User ID {telegram_id}"
 
 
 def format_currency(amount: float) -> str:
@@ -105,6 +121,7 @@ def format_order_summary(order: Dict) -> str:
         str: Formatted order summary
     """
     from src.utils.timezone import format_full_datetime
+    from src.database.models import Database
 
     lines = [
         f"📝 *Order #{order['order_number']}*\n"
@@ -116,7 +133,14 @@ def format_order_summary(order: Dict) -> str:
 
     # Add created by if available
     if order.get('created_by'):
-        lines.append(f"👤 Created by: User ID {order['created_by']}\n")
+        created_by_id = order['created_by']
+        db = Database()
+        user_info = db.get_user_by_telegram_id(created_by_id)
+        created_by_name = format_user_display_name(
+            created_by_id,
+            user_info.get('full_name') if user_info else None
+        )
+        lines.append(f"👤 Created by: {created_by_name}\n")
     else:
         lines.append("")  # Empty line for spacing
 

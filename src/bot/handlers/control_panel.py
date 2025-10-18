@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 from src.bot.middleware import require_auth
 from src.database.models import Database
 from src.bot.keyboards import get_control_panel_keyboard, get_pagination_keyboard
-from src.utils.formatters import format_session_summary, format_inventory_list
+from src.utils.formatters import format_session_summary, format_inventory_list, format_user_display_name
 from src.utils.timezone import format_full_datetime
 import math
 
@@ -23,14 +23,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if active_session:
         # Show control panel with active session info
-        started_by = active_session.get('started_by', 'Unknown')
+        started_by_id = active_session.get('started_by')
         started_at = format_full_datetime(active_session.get('started_at'))
+
+        # Get user info for display name
+        user_info = db.get_user_by_telegram_id(started_by_id) if started_by_id else None
+        started_by_name = format_user_display_name(
+            started_by_id,
+            user_info.get('full_name') if user_info else None
+        )
 
         await update.message.reply_text(
             f"👋 Welcome back, {user.first_name}!\n\n"
             f"🟢 *Active Session*\n"
             f"Started: {started_at}\n"
-            f"Started by: User ID {started_by}\n\n"
+            f"Started by: {started_by_name}\n\n"
             "Click 'Join Active Session' to continue working:",
             reply_markup=get_control_panel_keyboard(active_session),
             parse_mode="Markdown"
@@ -50,30 +57,59 @@ async def control_panel_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()
 
+    user = update.effective_user
+    user_name = user.first_name
+
     # Check if there's an active session
     active_session = db.get_active_session()
 
     if active_session:
-        started_by = active_session.get('started_by', 'Unknown')
+        # Show active session stats
         started_at = format_full_datetime(active_session.get('started_at'))
+        total_sales = active_session.get('total_sales', 0)
+        order_count = db.get_order_count_by_session(active_session['id'])
 
         await query.edit_message_text(
-            "🏠 *Control Panel*\n\n"
+            f"🏠 *Control Panel*\n\n"
+            f"👋 Welcome back, {user_name}!\n\n"
             f"🟢 *Active Session*\n"
             f"Started: {started_at}\n"
-            f"Started by: User ID {started_by}\n\n"
+            f"💰 Sales: ${total_sales:.2f} | 📝 Orders: {order_count}\n\n"
             "Choose an option:",
             reply_markup=get_control_panel_keyboard(active_session),
             parse_mode="Markdown"
         )
         return
 
-    await query.edit_message_text(
-        "🏠 *Control Panel*\n\n"
-        "Choose an option:",
-        reply_markup=get_control_panel_keyboard(),
-        parse_mode="Markdown"
-    )
+    # No active session - check for last ended session
+    last_session = db.get_last_ended_session()
+
+    if last_session:
+        # Show last ended session summary
+        ended_at = format_full_datetime(last_session.get('ended_at'))
+        total_sales = last_session.get('total_sales', 0)
+        order_count = db.get_order_count_by_session(last_session['id'])
+
+        await query.edit_message_text(
+            f"🏠 *Control Panel*\n\n"
+            f"👋 Welcome back, {user_name}!\n\n"
+            f"📊 *Last Session*\n"
+            f"Ended: {ended_at}\n"
+            f"💰 Total: ${total_sales:.2f} | 📝 Orders: {order_count}\n\n"
+            "Ready to start a new session?",
+            reply_markup=get_control_panel_keyboard(),
+            parse_mode="Markdown"
+        )
+    else:
+        # First time user - no sessions at all
+        await query.edit_message_text(
+            f"🏠 *Control Panel*\n\n"
+            f"👋 Welcome to Kori POS, {user_name}!\n\n"
+            "Ready to get started?\n"
+            "Set up your menu and start your first session!",
+            reply_markup=get_control_panel_keyboard(),
+            parse_mode="Markdown"
+        )
 
 
 @require_auth

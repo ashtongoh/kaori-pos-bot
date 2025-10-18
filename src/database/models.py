@@ -36,6 +36,14 @@ class Database:
         except Exception:
             pass
 
+    def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
+        """Get user information by telegram ID"""
+        try:
+            response = self.client.table("authorized_users").select("*").eq("telegram_id", telegram_id).execute()
+            return response.data[0] if response.data else None
+        except Exception:
+            return None
+
     # ===== MENU ITEMS =====
 
     def get_menu_items(self, active_only: bool = True) -> List[Dict]:
@@ -115,6 +123,14 @@ class Database:
         """Get the currently active session"""
         try:
             response = self.client.table("sale_sessions").select("*").eq("status", "active").execute()
+            return response.data[0] if response.data else None
+        except Exception:
+            return None
+
+    def get_last_ended_session(self) -> Optional[Dict]:
+        """Get the most recently ended session"""
+        try:
+            response = self.client.table("sale_sessions").select("*").eq("status", "ended").order("ended_at", desc=True).limit(1).execute()
             return response.data[0] if response.data else None
         except Exception:
             return None

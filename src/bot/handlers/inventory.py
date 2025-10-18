@@ -5,12 +5,14 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from src.bot.middleware import require_auth
 from src.database.models import Database
-from src.utils.formatters import format_inventory_list
+from src.utils.formatters import format_inventory_list, format_currency, format_user_display_name
+from src.utils.timezone import format_full_datetime
 from src.bot.keyboards import (
     get_inventory_start_keyboard,
     get_add_another_inventory_keyboard,
     get_inventory_skip_price_keyboard,
-    get_control_panel_keyboard
+    get_control_panel_keyboard,
+    get_sales_dashboard_keyboard
 )
 
 db = Database()
@@ -306,6 +308,38 @@ async def finish_inventory_input(update: Update, context: ContextTypes.DEFAULT_T
             parse_mode="Markdown"
         )
 
-    # Store session ID and show dashboard
+    # Store session ID
     context.user_data['active_session_id'] = session['id']
-    await show_sales_dashboard(update, context)
+
+    # Show dashboard directly after session creation
+    # Get session details for dashboard
+    session_refreshed = db.get_active_session()
+    if session_refreshed:
+        order_count = db.get_order_count_by_session(session_refreshed['id'])
+        total_sales = session_refreshed.get('total_sales', 0)
+        started_at = format_full_datetime(session_refreshed.get('started_at'))
+        started_by_id = session_refreshed.get('started_by')
+
+        # Get user info for display name
+        user_info = db.get_user_by_telegram_id(started_by_id) if started_by_id else None
+        started_by_name = format_user_display_name(
+            started_by_id,
+            user_info.get('full_name') if user_info else None
+        )
+
+        dashboard_text = (
+            f"💰 *Sales Dashboard*\n\n"
+            f"🟢 Session started: {started_at}\n"
+            f"👤 Started by: {started_by_name}\n\n"
+            f"💵 *Total Sales:* {format_currency(total_sales)}\n"
+            f"📝 *Orders:* {order_count}\n\n"
+            f"Choose an option:"
+        )
+
+        # Send new message with dashboard keyboard
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=dashboard_text,
+            reply_markup=get_sales_dashboard_keyboard(total_sales),
+            parse_mode="Markdown"
+        )

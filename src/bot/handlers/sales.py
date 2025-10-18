@@ -12,15 +12,14 @@ from src.bot.keyboards import (
     get_confirm_end_session_keyboard,
     get_control_panel_keyboard
 )
-from src.utils.formatters import format_currency, format_cart, format_session_summary
+from src.utils.formatters import format_currency, format_cart, format_session_summary, format_user_display_name
 from src.utils.timezone import get_singapore_time, format_full_datetime
 
 db = Database()
 
 
-@require_auth
 async def show_sales_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show the active sales dashboard"""
+    """Show the active sales dashboard (helper function, no auth decorator needed)"""
     # Get active session
     session = db.get_active_session()
 
@@ -43,12 +42,19 @@ async def show_sales_dashboard(update: Update, context: ContextTypes.DEFAULT_TYP
     order_count = db.get_order_count_by_session(session['id'])
     total_sales = session.get('total_sales', 0)
     started_at = format_full_datetime(session.get('started_at'))
-    started_by = session.get('started_by', 'Unknown')
+    started_by_id = session.get('started_by')
+
+    # Get user info for display name
+    user_info = db.get_user_by_telegram_id(started_by_id) if started_by_id else None
+    started_by_name = format_user_display_name(
+        started_by_id,
+        user_info.get('full_name') if user_info else None
+    )
 
     text = (
         f"💰 *Sales Dashboard*\n\n"
         f"🟢 Session started: {started_at}\n"
-        f"👤 Started by: User ID {started_by}\n\n"
+        f"👤 Started by: {started_by_name}\n\n"
         f"💵 *Total Sales:* {format_currency(total_sales)}\n"
         f"📝 *Orders:* {order_count}\n\n"
         f"Choose an option:"
@@ -71,26 +77,22 @@ async def show_sales_dashboard(update: Update, context: ContextTypes.DEFAULT_TYP
 @require_auth_callback
 async def join_session_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Join an active session (redirect to dashboard)"""
-    query = update.callback_query
-    await query.answer("Joining session...")
-
+    # Note: query.answer() is already called by @require_auth_callback middleware
     await show_sales_dashboard(update, context)
 
 
 @require_auth_callback
 async def refresh_dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Refresh the sales dashboard"""
-    query = update.callback_query
-    await query.answer("Refreshing...")
-
+    # Note: query.answer() is already called by @require_auth_callback middleware
     await show_sales_dashboard(update, context)
 
 
 @require_auth_callback
 async def new_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start a new order"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Get active session
     session = db.get_active_session()
@@ -128,8 +130,8 @@ async def new_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 @require_auth_callback
 async def add_item_to_cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Add an item to the cart"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer("Item added!")
 
     # Extract item ID from callback data
     item_id = query.data.split(':')[1]
@@ -139,7 +141,7 @@ async def add_item_to_cart_callback(update: Update, context: ContextTypes.DEFAUL
     menu_dict = {item['id']: item for item in menu_items}
 
     if item_id not in menu_dict:
-        await query.answer("❌ Item not found", show_alert=True)
+        # Note: Can't show alert since query was already answered by middleware
         return
 
     # Get or initialize cart
@@ -171,8 +173,8 @@ async def add_item_to_cart_callback(update: Update, context: ContextTypes.DEFAUL
 @require_auth_callback
 async def clear_cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Clear the cart"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer("Cart cleared!")
 
     # Clear cart
     context.user_data['cart'] = {}
@@ -192,13 +194,13 @@ async def clear_cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 @require_auth_callback
 async def confirm_cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Confirm cart and proceed to payment"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     cart = context.user_data.get('cart', {})
 
     if not cart:
-        await query.answer("❌ Cart is empty!", show_alert=True)
+        # Note: Can't show alert since query was already answered
         return
 
     # Show payment method selection
@@ -213,8 +215,8 @@ async def confirm_cart_callback(update: Update, context: ContextTypes.DEFAULT_TY
 @require_auth_callback
 async def payment_method_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle payment method selection and create order"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Extract payment method
     payment_method = query.data.split(':')[1]
@@ -273,8 +275,8 @@ async def payment_method_callback(update: Update, context: ContextTypes.DEFAULT_
 @require_auth_callback
 async def cancel_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel order creation"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer("Order cancelled")
 
     # Clear cart
     context.user_data.pop('cart', None)
@@ -286,8 +288,8 @@ async def cancel_order_callback(update: Update, context: ContextTypes.DEFAULT_TY
 @require_auth_callback
 async def cancel_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel payment and go back to cart"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Get menu items and cart
     menu_items = db.get_menu_items()
@@ -305,8 +307,8 @@ async def cancel_payment_callback(update: Update, context: ContextTypes.DEFAULT_
 @require_auth_callback
 async def end_session_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show confirmation for ending session"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Get active session
     session = db.get_active_session()
@@ -332,8 +334,8 @@ async def end_session_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 @require_auth_callback
 async def confirm_end_session_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Confirm and end the session"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Get active session
     session = db.get_active_session()
@@ -377,7 +379,5 @@ async def confirm_end_session_callback(update: Update, context: ContextTypes.DEF
 @require_auth_callback
 async def back_to_dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Return to sales dashboard"""
-    query = update.callback_query
-    await query.answer()
-
+    # Note: query.answer() is already called by @require_auth_callback middleware
     await show_sales_dashboard(update, context)

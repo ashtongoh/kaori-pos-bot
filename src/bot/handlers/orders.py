@@ -20,8 +20,8 @@ db = Database()
 @require_auth_callback
 async def view_orders_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View all orders in current session"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Get active session
     session = db.get_active_session()
@@ -68,8 +68,8 @@ async def view_orders_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 @require_auth_callback
 async def view_order_detail_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View order details"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Extract order ID from callback data
     order_id = query.data.split(':')[1]
@@ -78,7 +78,7 @@ async def view_order_detail_callback(update: Update, context: ContextTypes.DEFAU
     order = db.get_order_by_id(order_id)
 
     if not order:
-        await query.answer("❌ Order not found", show_alert=True)
+        # Note: Can't show alert since query was already answered
         return
 
     # Format and show order details
@@ -94,8 +94,8 @@ async def view_order_detail_callback(update: Update, context: ContextTypes.DEFAU
 @require_auth_callback
 async def delete_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show delete confirmation for an order"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Extract order ID from callback data
     order_id = query.data.split(':')[1]
@@ -104,7 +104,7 @@ async def delete_order_callback(update: Update, context: ContextTypes.DEFAULT_TY
     order = db.get_order_by_id(order_id)
 
     if not order:
-        await query.answer("❌ Order not found", show_alert=True)
+        # Note: Can't show alert since query was already answered
         return
 
     await query.edit_message_text(
@@ -119,8 +119,8 @@ async def delete_order_callback(update: Update, context: ContextTypes.DEFAULT_TY
 @require_auth_callback
 async def confirm_delete_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Confirm and delete an order"""
+    # Note: query.answer() is already called by @require_auth_callback middleware
     query = update.callback_query
-    await query.answer()
 
     # Extract order ID from callback data
     order_id = query.data.split(':')[1]
@@ -129,7 +129,7 @@ async def confirm_delete_order_callback(update: Update, context: ContextTypes.DE
     order = db.get_order_by_id(order_id)
 
     if not order:
-        await query.answer("❌ Order not found", show_alert=True)
+        # Note: Can't show alert since query was already answered
         return
 
     order_number = order['order_number']
