@@ -20,7 +20,8 @@ def get_control_panel_keyboard(active_session=None) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📊 View Past Sales", callback_data="view_sales")],
         [InlineKeyboardButton("📦 View Past Inventory", callback_data="view_inventory")],
         [InlineKeyboardButton("📋 Manage Menu", callback_data="manage_menu")],
-        [InlineKeyboardButton("👥 Manage Users", callback_data="manage_users")]
+        [InlineKeyboardButton("👥 Manage Users", callback_data="manage_users")],
+        [InlineKeyboardButton("🗑 Cleanup Data", callback_data="cleanup_menu")]
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -403,5 +404,116 @@ def get_confirm_delete_user_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton("✅ Yes, Remove", callback_data=f"confirm_delete_user:{telegram_id}"),
             InlineKeyboardButton("❌ Cancel", callback_data="manage_users")
         ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_cleanup_menu_keyboard() -> InlineKeyboardMarkup:
+    """Get cleanup menu keyboard"""
+    keyboard = [
+        [InlineKeyboardButton("🗑 Cleanup Past Sales", callback_data="cleanup_sales")],
+        [InlineKeyboardButton("📦 Cleanup Past Inventory", callback_data="cleanup_inventory")],
+        [InlineKeyboardButton("🔥 Purge All Past Data", callback_data="confirm_purge_all")],
+        [InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_past_sales_cleanup_keyboard(sessions: List[Dict], page: int = 0, total_pages: int = 1) -> InlineKeyboardMarkup:
+    """
+    Get keyboard with list of past sales sessions for cleanup
+
+    Args:
+        sessions: List of session dictionaries
+        page: Current page number (0-indexed)
+        total_pages: Total number of pages
+    """
+    from src.utils.timezone import format_full_datetime
+
+    keyboard = []
+
+    # Add session buttons
+    for session in sessions:
+        started_at = format_full_datetime(session.get('started_at'))
+        session_id = session['id']
+
+        button_text = f"🗑 {started_at}"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"confirm_delete_session:{session_id}")])
+
+    # Add pagination if needed
+    if total_pages > 1:
+        nav_row = []
+        if page > 0:
+            nav_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"cleanup_sales:{page - 1}"))
+        if page < total_pages - 1:
+            nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"cleanup_sales:{page + 1}"))
+        if nav_row:
+            keyboard.append(nav_row)
+
+    # Add back button
+    keyboard.append([InlineKeyboardButton("🔙 Back to Cleanup Menu", callback_data="cleanup_menu")])
+
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_past_inventory_cleanup_keyboard(sessions: List[Dict], page: int = 0, total_pages: int = 1) -> InlineKeyboardMarkup:
+    """
+    Get keyboard with list of sessions with inventory for cleanup
+
+    Args:
+        sessions: List of session dictionaries
+        page: Current page number (0-indexed)
+        total_pages: Total number of pages
+    """
+    from src.utils.timezone import format_full_datetime
+
+    keyboard = []
+
+    # Add session buttons
+    for session in sessions:
+        started_at = format_full_datetime(session.get('started_at'))
+        session_id = session['id']
+        inventory_count = session.get('inventory_count', 0)
+
+        button_text = f"📦 {started_at} ({inventory_count} items)"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"confirm_delete_session:{session_id}")])
+
+    # Add pagination if needed
+    if total_pages > 1:
+        nav_row = []
+        if page > 0:
+            nav_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"cleanup_inventory:{page - 1}"))
+        if page < total_pages - 1:
+            nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"cleanup_inventory:{page + 1}"))
+        if nav_row:
+            keyboard.append(nav_row)
+
+    # Add back button
+    keyboard.append([InlineKeyboardButton("🔙 Back to Cleanup Menu", callback_data="cleanup_menu")])
+
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_confirm_delete_session_keyboard(session_id: str) -> InlineKeyboardMarkup:
+    """
+    Get confirmation keyboard for deleting a session
+
+    Args:
+        session_id: Session ID to delete
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Yes, Delete", callback_data=f"delete_session:{session_id}"),
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel_cleanup")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_confirm_purge_all_keyboard() -> InlineKeyboardMarkup:
+    """Get confirmation keyboard for purging all past data"""
+    keyboard = [
+        [InlineKeyboardButton("🔥 YES, PURGE ALL", callback_data="purge_all_confirmed")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="cleanup_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)

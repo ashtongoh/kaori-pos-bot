@@ -75,6 +75,16 @@ from src.bot.handlers.users import (
     delete_user_callback,
     confirm_delete_user_callback
 )
+from src.bot.handlers.cleanup import (
+    cleanup_menu_callback,
+    cleanup_sales_callback,
+    cleanup_inventory_callback,
+    confirm_delete_session_callback,
+    delete_session_callback,
+    cancel_cleanup_callback,
+    confirm_purge_all_callback,
+    purge_all_confirmed_callback
+)
 
 # Load environment variables
 load_dotenv()
@@ -176,6 +186,16 @@ def setup_handlers(app: Application):
     app.add_handler(CallbackQueryHandler(confirm_add_user_callback, pattern="^confirm_add_user:"))
     app.add_handler(CallbackQueryHandler(delete_user_callback, pattern="^delete_user:"))
     app.add_handler(CallbackQueryHandler(confirm_delete_user_callback, pattern="^confirm_delete_user:"))
+
+    # Cleanup callbacks
+    app.add_handler(CallbackQueryHandler(cleanup_menu_callback, pattern="^cleanup_menu$"))
+    app.add_handler(CallbackQueryHandler(cleanup_sales_callback, pattern="^cleanup_sales"))
+    app.add_handler(CallbackQueryHandler(cleanup_inventory_callback, pattern="^cleanup_inventory"))
+    app.add_handler(CallbackQueryHandler(confirm_delete_session_callback, pattern="^confirm_delete_session:"))
+    app.add_handler(CallbackQueryHandler(delete_session_callback, pattern="^delete_session:"))
+    app.add_handler(CallbackQueryHandler(cancel_cleanup_callback, pattern="^cancel_cleanup$"))
+    app.add_handler(CallbackQueryHandler(confirm_purge_all_callback, pattern="^confirm_purge_all$"))
+    app.add_handler(CallbackQueryHandler(purge_all_confirmed_callback, pattern="^purge_all_confirmed$"))
 
     logger.info("All handlers registered successfully")
 

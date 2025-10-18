@@ -191,6 +191,14 @@ class Database:
         except Exception:
             return []
 
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a session and all related data (cascade deletes orders and inventory)"""
+        try:
+            self.client.table("sale_sessions").delete().eq("id", session_id).execute()
+            return True
+        except Exception:
+            return False
+
     # ===== INVENTORY LOGS =====
 
     def add_inventory_log(self, session_id: str, item_name: str, quantity: int, cost_price: Optional[float] = None) -> Optional[Dict]:
@@ -294,3 +302,61 @@ class Database:
             return response.count if response.count else 0
         except Exception:
             return 0
+
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a session and all related data (orders, inventory)"""
+        try:
+            # Delete orders first
+            self.client.table("orders").delete().eq("session_id", session_id).execute()
+
+            # Delete inventory logs
+            self.client.table("inventory_logs").delete().eq("session_id", session_id).execute()
+
+            # Delete session
+            self.client.table("sale_sessions").delete().eq("id", session_id).execute()
+
+            return True
+        except Exception:
+            return False
+
+    def purge_all_past_sessions(self) -> dict:
+        """
+        Delete all ended sessions and their related data (orders, inventory)
+        Returns dict with counts of deleted items
+        """
+        try:
+            # Get all ended sessions
+            ended_sessions = self.client.table("sale_sessions").select("id").eq("status", "ended").execute()
+
+            if not ended_sessions.data:
+                return {"sessions": 0, "orders": 0, "inventory": 0}
+
+            session_ids = [s['id'] for s in ended_sessions.data]
+
+            # Count orders and inventory before deletion
+            orders_count = 0
+            inventory_count = 0
+
+            for session_id in session_ids:
+                orders_count += self.get_order_count_by_session(session_id)
+                inventory = self.get_inventory_by_session(session_id)
+                inventory_count += len(inventory) if inventory else 0
+
+            # Delete all orders for these sessions
+            for session_id in session_ids:
+                self.client.table("orders").delete().eq("session_id", session_id).execute()
+
+            # Delete all inventory logs for these sessions
+            for session_id in session_ids:
+                self.client.table("inventory_logs").delete().eq("session_id", session_id).execute()
+
+            # Delete all ended sessions
+            self.client.table("sale_sessions").delete().eq("status", "ended").execute()
+
+            return {
+                "sessions": len(session_ids),
+                "orders": orders_count,
+                "inventory": inventory_count
+            }
+        except Exception:
+            return {"sessions": 0, "orders": 0, "inventory": 0}
