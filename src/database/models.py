@@ -44,6 +44,35 @@ class Database:
         except Exception:
             return None
 
+    def get_all_authorized_users(self) -> List[Dict]:
+        """Get all authorized users"""
+        try:
+            response = self.client.table("authorized_users").select("*").order("created_at", desc=True).execute()
+            return response.data
+        except Exception:
+            return []
+
+    def add_authorized_user(self, telegram_id: int, username: str = None, full_name: str = None) -> bool:
+        """Add a new authorized user"""
+        try:
+            data = {
+                "telegram_id": telegram_id,
+                "username": username,
+                "full_name": full_name
+            }
+            self.client.table("authorized_users").insert(data).execute()
+            return True
+        except Exception:
+            return False
+
+    def delete_authorized_user(self, telegram_id: int) -> bool:
+        """Delete an authorized user"""
+        try:
+            self.client.table("authorized_users").delete().eq("telegram_id", telegram_id).execute()
+            return True
+        except Exception:
+            return False
+
     # ===== MENU ITEMS =====
 
     def get_menu_items(self, active_only: bool = True) -> List[Dict]:

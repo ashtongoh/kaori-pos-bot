@@ -66,6 +66,15 @@ from src.bot.handlers.orders import (
     delete_order_callback,
     confirm_delete_order_callback
 )
+from src.bot.handlers.users import (
+    manage_users_callback,
+    add_user_callback,
+    cancel_user_mgmt,
+    handle_user_message,
+    confirm_add_user_callback,
+    delete_user_callback,
+    confirm_delete_user_callback
+)
 
 # Load environment variables
 load_dotenv()
@@ -112,6 +121,9 @@ def setup_handlers(app: Application):
     # Message handler for inventory flow (checks context.user_data['inventory_state'])
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_inventory_message), group=2)
 
+    # Message handler for user management flow (checks context.user_data['user_mgmt_state'])
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_message), group=3)
+
     # Inventory session start handlers - Manual state management
     app.add_handler(CallbackQueryHandler(start_session_callback, pattern="^start_session$"))
     app.add_handler(CallbackQueryHandler(start_adding_inventory_callback, pattern="^start_adding_inventory$"))
@@ -156,6 +168,14 @@ def setup_handlers(app: Application):
     app.add_handler(CallbackQueryHandler(view_order_detail_callback, pattern="^view_order:"))
     app.add_handler(CallbackQueryHandler(delete_order_callback, pattern="^delete_order:"))
     app.add_handler(CallbackQueryHandler(confirm_delete_order_callback, pattern="^confirm_delete:"))
+
+    # User management callbacks
+    app.add_handler(CallbackQueryHandler(manage_users_callback, pattern="^manage_users$"))
+    app.add_handler(CallbackQueryHandler(add_user_callback, pattern="^add_user$"))
+    app.add_handler(CallbackQueryHandler(cancel_user_mgmt, pattern="^cancel_user_mgmt$"))
+    app.add_handler(CallbackQueryHandler(confirm_add_user_callback, pattern="^confirm_add_user:"))
+    app.add_handler(CallbackQueryHandler(delete_user_callback, pattern="^delete_user:"))
+    app.add_handler(CallbackQueryHandler(confirm_delete_user_callback, pattern="^confirm_delete_user:"))
 
     logger.info("All handlers registered successfully")
 

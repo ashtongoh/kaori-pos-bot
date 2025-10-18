@@ -19,7 +19,8 @@ def get_control_panel_keyboard(active_session=None) -> InlineKeyboardMarkup:
     keyboard.extend([
         [InlineKeyboardButton("📊 View Past Sales", callback_data="view_sales")],
         [InlineKeyboardButton("📦 View Past Inventory", callback_data="view_inventory")],
-        [InlineKeyboardButton("📋 Manage Menu", callback_data="manage_menu")]
+        [InlineKeyboardButton("📋 Manage Menu", callback_data="manage_menu")],
+        [InlineKeyboardButton("👥 Manage Users", callback_data="manage_users")]
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -327,5 +328,80 @@ def get_inventory_skip_price_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [InlineKeyboardButton("⏭ Skip Cost Price", callback_data="skip_inventory_price")],
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel_session_start")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_user_management_keyboard(users: List[Dict]) -> InlineKeyboardMarkup:
+    """
+    Get keyboard for user management with list of users
+
+    Args:
+        users: List of authorized user dictionaries
+    """
+    keyboard = []
+
+    # Add user buttons
+    for user in users:
+        telegram_id = user.get('telegram_id')
+        full_name = user.get('full_name')
+        username = user.get('username')
+
+        # Format display name
+        if full_name:
+            display_name = full_name
+        elif username:
+            display_name = f"@{username}"
+        else:
+            display_name = f"User ID {telegram_id}"
+
+        keyboard.append([
+            InlineKeyboardButton(f"👤 {display_name}", callback_data=f"view_user:{telegram_id}"),
+            InlineKeyboardButton("🗑", callback_data=f"delete_user:{telegram_id}")
+        ])
+
+    # Add action buttons
+    keyboard.append([InlineKeyboardButton("➕ Add User", callback_data="add_user")])
+    keyboard.append([InlineKeyboardButton("🔙 Back to Control Panel", callback_data="control_panel")])
+
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_add_user_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard for add user flow"""
+    keyboard = [
+        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_user_mgmt")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_confirm_add_user_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
+    """
+    Keyboard for confirming adding a new user
+
+    Args:
+        telegram_id: Telegram ID of user to add
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Confirm", callback_data=f"confirm_add_user:{telegram_id}"),
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel_user_mgmt")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_confirm_delete_user_keyboard(telegram_id: int) -> InlineKeyboardMarkup:
+    """
+    Keyboard for confirming user deletion
+
+    Args:
+        telegram_id: Telegram ID of user to delete
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Yes, Remove", callback_data=f"confirm_delete_user:{telegram_id}"),
+            InlineKeyboardButton("❌ Cancel", callback_data="manage_users")
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
