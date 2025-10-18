@@ -19,8 +19,7 @@ class Database:
         try:
             response = self.client.table("authorized_users").select("id").eq("telegram_id", telegram_id).execute()
             return len(response.data) > 0
-        except Exception as e:
-            print(f"Error checking authorization: {e}")
+        except Exception:
             return False
 
     def update_user_info(self, telegram_id: int, username: str = None, full_name: str = None):
@@ -34,8 +33,8 @@ class Database:
 
             if data:
                 self.client.table("authorized_users").update(data).eq("telegram_id", telegram_id).execute()
-        except Exception as e:
-            print(f"Error updating user info: {e}")
+        except Exception:
+            pass
 
     # ===== MENU ITEMS =====
 
@@ -47,8 +46,7 @@ class Database:
                 query = query.eq("active", True)
             response = query.order("display_order").execute()
             return response.data
-        except Exception as e:
-            print(f"Error fetching menu items: {e}")
+        except Exception:
             return []
 
     def add_menu_item(self, name: str, size: str, price: float) -> Optional[Dict]:
@@ -65,8 +63,7 @@ class Database:
                 "display_order": next_order
             }).execute()
             return response.data[0] if response.data else None
-        except Exception as e:
-            print(f"Error adding menu item: {e}")
+        except Exception:
             return None
 
     def update_menu_item_name(self, item_id: str, name: str) -> bool:
@@ -74,8 +71,7 @@ class Database:
         try:
             self.client.table("menu_items").update({"name": name}).eq("id", item_id).execute()
             return True
-        except Exception as e:
-            print(f"Error updating menu item name: {e}")
+        except Exception:
             return False
 
     def update_menu_item_size(self, item_id: str, size: str) -> bool:
@@ -83,8 +79,7 @@ class Database:
         try:
             self.client.table("menu_items").update({"size": size}).eq("id", item_id).execute()
             return True
-        except Exception as e:
-            print(f"Error updating menu item size: {e}")
+        except Exception:
             return False
 
     def update_menu_item_price(self, item_id: str, price: float) -> bool:
@@ -92,8 +87,7 @@ class Database:
         try:
             self.client.table("menu_items").update({"price": price}).eq("id", item_id).execute()
             return True
-        except Exception as e:
-            print(f"Error updating menu item price: {e}")
+        except Exception:
             return False
 
     def delete_menu_item(self, item_id: str) -> bool:
@@ -101,8 +95,7 @@ class Database:
         try:
             self.client.table("menu_items").update({"active": False}).eq("id", item_id).execute()
             return True
-        except Exception as e:
-            print(f"Error deleting menu item: {e}")
+        except Exception:
             return False
 
     # ===== SALE SESSIONS =====
@@ -115,8 +108,7 @@ class Database:
                 "status": "active"
             }).execute()
             return response.data[0] if response.data else None
-        except Exception as e:
-            print(f"Error creating session: {e}")
+        except Exception:
             return None
 
     def get_active_session(self) -> Optional[Dict]:
@@ -124,8 +116,7 @@ class Database:
         try:
             response = self.client.table("sale_sessions").select("*").eq("status", "active").execute()
             return response.data[0] if response.data else None
-        except Exception as e:
-            print(f"Error fetching active session: {e}")
+        except Exception:
             return None
 
     def end_session(self, session_id: str) -> bool:
@@ -136,8 +127,7 @@ class Database:
                 "ended_at": datetime.utcnow().isoformat()
             }).eq("id", session_id).execute()
             return True
-        except Exception as e:
-            print(f"Error ending session: {e}")
+        except Exception:
             return False
 
     def get_session_by_id(self, session_id: str) -> Optional[Dict]:
@@ -145,8 +135,7 @@ class Database:
         try:
             response = self.client.table("sale_sessions").select("*").eq("id", session_id).execute()
             return response.data[0] if response.data else None
-        except Exception as e:
-            print(f"Error fetching session: {e}")
+        except Exception:
             return None
 
     def get_past_sessions(self, limit: int = 10, offset: int = 0) -> List[Dict]:
@@ -154,8 +143,7 @@ class Database:
         try:
             response = self.client.table("sale_sessions").select("*").order("started_at", desc=True).range(offset, offset + limit - 1).execute()
             return response.data
-        except Exception as e:
-            print(f"Error fetching past sessions: {e}")
+        except Exception:
             return []
 
     # ===== INVENTORY LOGS =====
@@ -173,8 +161,7 @@ class Database:
 
             response = self.client.table("inventory_logs").insert(data).execute()
             return response.data[0] if response.data else None
-        except Exception as e:
-            print(f"Error adding inventory log: {e}")
+        except Exception:
             return None
 
     def get_inventory_by_session(self, session_id: str) -> List[Dict]:
@@ -182,8 +169,7 @@ class Database:
         try:
             response = self.client.table("inventory_logs").select("*").eq("session_id", session_id).execute()
             return response.data
-        except Exception as e:
-            print(f"Error fetching inventory logs: {e}")
+        except Exception:
             return []
 
     def get_sessions_with_inventory(self, limit: int = 10, offset: int = 0) -> List[Dict]:
@@ -203,8 +189,7 @@ class Database:
                     sessions_with_inventory.append(session)
 
             return sessions_with_inventory
-        except Exception as e:
-            print(f"Error fetching sessions with inventory: {e}")
+        except Exception:
             return []
 
     # ===== ORDERS =====
@@ -230,8 +215,7 @@ class Database:
             }).execute()
 
             return order_response.data[0] if order_response.data else None
-        except Exception as e:
-            print(f"Error creating order: {e}")
+        except Exception:
             return None
 
     def get_orders_by_session(self, session_id: str, limit: int = 10, offset: int = 0) -> List[Dict]:
@@ -239,8 +223,7 @@ class Database:
         try:
             response = self.client.table("orders").select("*").eq("session_id", session_id).order("order_number", desc=False).range(offset, offset + limit - 1).execute()
             return response.data
-        except Exception as e:
-            print(f"Error fetching orders: {e}")
+        except Exception:
             return []
 
     def get_order_by_id(self, order_id: str) -> Optional[Dict]:
@@ -248,8 +231,7 @@ class Database:
         try:
             response = self.client.table("orders").select("*").eq("id", order_id).execute()
             return response.data[0] if response.data else None
-        except Exception as e:
-            print(f"Error fetching order: {e}")
+        except Exception:
             return None
 
     def delete_order(self, order_id: str) -> bool:
@@ -257,8 +239,7 @@ class Database:
         try:
             self.client.table("orders").delete().eq("id", order_id).execute()
             return True
-        except Exception as e:
-            print(f"Error deleting order: {e}")
+        except Exception:
             return False
 
     def get_order_count_by_session(self, session_id: str) -> int:
@@ -266,6 +247,5 @@ class Database:
         try:
             response = self.client.table("orders").select("id", count="exact").eq("session_id", session_id).execute()
             return response.count if response.count else 0
-        except Exception as e:
-            print(f"Error counting orders: {e}")
+        except Exception:
             return 0

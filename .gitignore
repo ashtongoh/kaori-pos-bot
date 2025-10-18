@@ -45,11 +45,17 @@ Thumbs.db
 
 # Logs
 *.log
+bot_log.txt
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
+test_*.py
 
 # Deployment
 *.pid
+
+# Debug files
+kill_*.bat
+debug_*.bat

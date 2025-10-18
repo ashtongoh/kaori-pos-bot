@@ -40,7 +40,6 @@ def require_auth(func):
 
             # LAYER 1: Check if we've already processed this exact query ID globally
             if query_id in context.bot_data['processed_queries']:
-                logger.debug(f"Duplicate query detected and ignored: {query_id}")
                 return  # Skip duplicate queries
 
             # Mark this query as processed immediately (before any async work)
@@ -53,7 +52,6 @@ def require_auth(func):
 
             # LAYER 2: Prevent duplicate processing by checking processing state
             if context.user_data.get('processing'):
-                logger.debug(f"User {telegram_id} already processing a request")
                 return  # Silently ignore if already processing
 
             # Set processing state immediately to prevent race conditions
@@ -132,7 +130,6 @@ def require_auth_callback(func):
 
         # LAYER 1: Check if we've already processed this exact query ID globally
         if query_id in context.bot_data['processed_queries']:
-            logger.debug(f"Duplicate query detected and ignored: {query_id}")
             return  # Skip duplicate queries
 
         # Mark this query as processed immediately (before any async work)
@@ -146,7 +143,6 @@ def require_auth_callback(func):
 
         # LAYER 2: Prevent duplicate processing by checking processing state
         if context.user_data.get('processing'):
-            logger.debug(f"User {telegram_id} already processing a request")
             return  # Silently ignore if already processing
 
         # Set processing state immediately to prevent race conditions
